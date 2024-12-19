@@ -1,3 +1,3 @@
 # some notes
 
-1. [make](C:\Users\26259\Desktop\note\make.md)
+1. [make](https://github.com/feiwuyige/learn-some-tools/blob/main/make.md)
