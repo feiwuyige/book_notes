@@ -70,5 +70,43 @@
    vpath %.h ../headers
    ```
 
+3. 静态模式：
+   ```makefile
+   <targets ...> : <target-pattern> : <prereq-patterns ...>
+   	<commands>
+   	...
+   ```
+
+   `<targets>`：定义一系列目标文件，是目标的集合。
+
+   `<target-pattern>`：目标集模式
+
+   `<prereq-patterns>`：目标的依赖模式，是对 `target-pattern` 形成的模式再进行一次依赖目标的定义。
+
+   ```makefile
+   objects = foo.o bar.o
+   
+   all: $(objects)
+   
+   $(objects): %.o: %.c
+       $(CC) -c $(CFLAGS) $< -o $@
+   ```
+
+4. 在 makefile 中，依赖关系需要包含相应的头文件，我们可以使用 `gcc -M` 来得到相应文件所依赖的头文件。
+   ```makefile
+   %.d: %.c
+       @set -e; rm -f $@; \
+       $(CC) -M $(CPPFLAGS) $< > $@.$$$$; \
+       # 使用sed s/pattern/replacement/flags，用 , 替换 /
+       # \1 引用正则表达式中的第一个捕获分组内容（即目标文件的基名，如 file）
+       # $@ 即当前文件 .d
+       sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+       rm -f $@.$$$$
+   # 上面的效果
+   main.o : main.c defs.h
+   # 变成
+   main.o main.d : main.c defs.h
+   ```
+
    
 
