@@ -185,3 +185,34 @@
      * 如果 `mem` 是虚函数，且我们是通过指针或者引用来进行调用，则编译器产生的代码（读虚表）将依据对象的动态类型在运行时确定虚函数的版本。
      * 如果 `mem` 不是虚函数，或者我们不是通过指针、引用来进行调用，则编译器产生一个常规的函数调用。
 
+## 8. Prevent exceptions from leaving destructors
+
+1. 析构函数不要抛出异常，比如有一个 `animal` 类，我们定义了一个 `std::vector<animal> ` ，那么当我们去析构这个 `vector` 的时候，肯定会去处理其中的每一个元素，也就是对每一个 `animal` 对象调用析构函数，如果析构函数抛出异常，在处理多个元素的时候都抛出了异常，就会出现错误，因为对于C++而言，**在两个异常同时存在的情况下，程序若不是结束执行就会导致不明确的行为。**
+2. 有两种方式可以避免这一问题：
+   * 在析构函数中捕获异常，然后利用 `std::abort` 终止程序。
+   * 在析构函数中捕获异常并进行处理。
+
+## 9. Never call virtual functions during construction or destruction
+
+1. 由 C++ 的构造规则可以知道，derived class对象内部的 base class成分会在derived class自身成分被构造之前先构造妥当。所以如果基类的构造函数中使用了虚函数，我们初始化一个派生类对象，那么在构造派生类对象的过程中，调用基类的构造函数的时候，虚函数的行为只能是基类的行为，毕竟派生类的成分还没有构造，即**在base class 构造期间，virtual 函数不是 virtual  函数。**
+2. 析构函数的调用是反着来的，所以当调用到基类的析构函数的时候，派生类的成分已经析构完毕了，那么相当于此时还是只有一个基类成分。**其实还有比上述理由更根本的原因：在derived class对象的base class构造期间，对象的类型是 base class 而不是 derived class。不只 virtual 函数会被编译器解析至（resolve to）base class，若使用运行期类型信息（runtime type information，例如dynamic_cast（见条款27）和typeid），也会把对象视为base class类型。**
+3. 当我们实现一个虚函数的时候，大概率都会用到派生类中的成员变量（不然没有必要声明为虚函数），但是不管是在析构函数还是在构造函数中调用虚函数的时候，此时的派生类成员已经被销毁或者是还没有构造，**使用未初始化的变量是十分危险的**，所以c++禁止此种用法。而且即使编译器没有报错，那么调用的虚函数版本大概率也不是你想要的版本。
+
+## 10. Have assignment operators return a reference to *this
+
+1. 为了实现连锁赋值，赋值操作符必须返回一个reference指向操作符左侧实参。
+   ```cpp
+   a = b = c = 15; //a = (b = (c = 15));
+   class Wedget{
+   public:
+       Wedget& operator=(const Wedget& rhs){
+   		//...
+           return *this;
+       }
+   };
+   //若不定义为引用
+   (a = b) = c;
+   //a != c，因为a = b 返回的是一个临时量，并不是 a 的引用
+   ```
+
+   
