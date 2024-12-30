@@ -215,4 +215,63 @@
    //a != c，因为a = b 返回的是一个临时量，并不是 a 的引用
    ```
 
-   
+
+## 11. Handle assignment to self in opetator=
+
+1. 让 `opetator=` 具备 “异常安全性” 往往自动获得 “自我赋值安全” 的回报。
+   ```cpp
+   Widget& Widget::operator=(const Widget& rhs){
+       Bitmap* pOrig = pb;
+       pb = new Bitmap(*rhs.pb);
+       delete pOrig;
+       return *this;
+   }
+   ```
+
+   此时如果 `new bitmap` 抛出异常，那么 `pb` 会保持原状，而且这段代码还能处理自我赋值。
+
+2. 除了在 `operator=` 中手工排列语句，还可以使用 `copy and swap` 技术：
+   ```cpp
+   class Widget{
+       //...
+       void swap(Widget &rhs);
+       //...
+   };
+   Widget& Widget::operator=(const Widget& rhs){
+   	Widget temp(rhs);
+       swap(temp);
+       return *this;
+   }
+   ```
+
+   还有一种技术使用了以下事实：
+
+   * 某 class 的 `copy assignment` 操作符可能被声明为 “以 `by value` 方式接受实参”
+   * 以 `by value` 方式传递东西会造成一份副本
+
+   ```cpp
+   Widget& Widget::operator=( Widget rhs){ //pass by value
+       swap(rhs);
+       return *this;
+   }
+   ```
+
+   **这样做将 `copying` 动作从函数本体内移至 “函数参数构造阶段”。**
+
+## 12. Copy all parts of an object
+
+1. 任何时候只要需要 **为 derived class 撰写 copying 函数**，就必须很小心的赋值其 `base class` 部分，那些成分往往是 `private` ，所以无法直接访问，应该让 `derived class` 的 `copying` 函数去调用相应的 `base class` 函数。
+   ```cpp
+   PriorityCustomer::PriorityCustomer(const PriorityCustomer& rhs)
+   	: Customer(rhs), priority(rhs.priority) //继承自customer类
+   {
+   }
+   ```
+
+2. 该条款所说的 `all parts`：
+
+   * 复制所有 local 成员变量
+   * 调用所有 base classes 内的适当的 copying 函数。
+
+3. 不要尝试以某个copying函数实现另一个copying函数。应该将共同机能放进第三个函数中，并由两个coping函数共同调用。即使用copy构造函数调用copy构造函数，使用 copy assignment 函数调用 copy assignment 函数。
+
