@@ -275,3 +275,22 @@
 
 3. 不要尝试以某个copying函数实现另一个copying函数。应该将共同机能放进第三个函数中，并由两个coping函数共同调用。即使用copy构造函数调用copy构造函数，使用 copy assignment 函数调用 copy assignment 函数。
 
+## 13. Use objects to manage resources
+
+1. 动态内存分配获得的指针，用户往往会忘记 `delete` 进行手动释放，即使进行了 `delete` ，但可能由于某些情况，代码并不会执行到`delete` 处，此时就造成了内存泄漏，为了避免这种情况，一种好的处理方式是使用编译器自动调用析构函数这一特点，来使用对象进行资源管理，具体而言，就是当返回资源的时候，用该资源构造某一个对象，那么当这个对象生命周期结束的时候，编译器会自动调用析构函数，从而达到释放资源的目的。即：
+   * 获得资源立刻放进管理对象
+   * 管理对象运用析构函数确保资源被释放
+2. RAII(Resource Acquisition Is Initialization)：资源取得时机便是初始化时机
+3. RCSP(reference-count smart pointer)：引用计数型智能指针
+
+## 14. Think carefully about copying behavior in resource-manage class
+
+1. 我们使用智能指针管理动态内存的资源已经足够，这是因为资源是分配在堆上的，但是还有些资源并不如此，那么我们就需要自己去定义资源管理类，此时要考虑该类中的复制操作。
+2. 常见的复制操作有以下几种处理方式：
+   * 禁止复制：有的时候，有些资源复制并不合理，所以我们要禁用拷贝构造函数和拷贝赋值运算符，通过声明为 `private` 或者继承一个 `Uncopable` 类来实现。（条款6）
+   * 对底层资源使用引用计数法：正如 `shared_ptr` 一样，同时，`shared_ptr` 可以自定义删除器，当引用计数为 0 时调用该函数。
+   * 复制底层资源：此时应该要注意进行深度拷贝。
+   * 转移底层资源的拥有权：正如 `auto_ptr` 一样，当我们调用 `auto_ptr p2(p1)` 的时候，那么 `p2` 将指向 `p1` 之前指向的资源，且 `p1` 将指向 `null` 。
+
+## 15. Provide access to raw resources in resource-manage class
+
