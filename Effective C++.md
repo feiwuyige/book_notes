@@ -294,3 +294,66 @@
 
 ## 15. Provide access to raw resources in resource-manage class
 
+1. APIs往往要求访问原始资源（raw resources），所以每一个RAII class应该提供一个“取得其所管理之资源”的办法。
+
+2. 
+
+   * 提供隐式转换，可以将一个资源管理类对象隐式转化为一个底层资源，如：				
+
+     ```cpp
+   FontHandle getFont(); //C API
+   	void releaseFont(FontHandle fh); //C API
+   class Font{
+   public:
+     explicit Font(FontHandle fh) : f(fh){}
+     ~Font(){releaseFont(f);}
+       operator FontHandle() const{   // 类型转换操作符重载
+           return f;
+       }
+     private:
+     FontHandle f;
+   };
+   	```
+   
+   * 提供显式转换，例如  `get()` 方法。
+
+## 16. Use the same form in corresponding uses of new and delete
+
+1.  `new` 运算符在调用时出现以下两个行为：
+
+   * 通过 `operator new` 的函数分配内存
+   * 针对此内存有一个或多个构造函数被调用
+
+   `delete` 运算符在调用时出现以下两个行为：
+
+   * 针对此内存有一个或多个析构函数被调用
+   * 通过 `operator delete` 的函数释放内存
+
+2. 一定要成对出现，否则程序的行为是 **UB**：
+   ```cpp
+   int *p = new int(); //值初始化
+   delete p;
+   int *parray = new int[10]{1, 2, 3}; //列表初始化
+   delete[] parray;
+   ```
+
+
+## 17. Store newed objects in smart pointers in standalone statements
+
+1. 因为 `shared_ptr` 的构造函数时 `explicit` 的，也就是禁止进行隐式转换：
+   ```cpp
+   shared_ptr<int> sp = new int; //错误，不能隐式转换
+   shared_ptr<int> sp(new int); //正确，调用对应的构造函数
+   ```
+
+2. ```cpp
+   processWidget(std::shared_ptr<Widget>(new Widget), priority());
+   ```
+
+   该语句只能保证 `new` 的运行早于 `shared_ptr` 构造函数的运行，所以可能存在以下情况：
+
+   * new
+   * priority()
+   * 构造函数
+
+   所以即使使用了RAII来管理资源，也可能会出现问题。
