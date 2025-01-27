@@ -357,3 +357,103 @@
    * 构造函数
 
    所以即使使用了RAII来管理资源，也可能会出现问题。
+
+## 18. Make interface easy to use correctly and hard to use incorrectly
+
+1. 组织接口被误用的方式可以通过设计新的类型来完成。比如：
+   ```cpp
+   class Date{
+       Date(int month, int day, int year);
+   };
+   //上述的接口设计就不是很好
+   class month{
+   	mouth(int m);
+   };
+   class day{
+   	day(int d);
+   };
+   class year{
+   	year(int y);
+   };
+   class Date{
+   	Date(month m, day d, year y);
+   };
+   ```
+
+2. shared_ptr支持定制型删除器（custom deleter）。这可防范DLL问题，这个问题发生于“对象在动态连接程序库（DLL）中被 new创建，却在另一个 DLL 内被delete销毁”。在许多平台上，这一类“跨 DLL 之 new/delete成对运用”会导致运行期错误。因为会在引用计数为0的时候自动去调用构造智能指针时指定的删除器。
+
+## 19. Treat class design as type design
+
+1. 定义一个新的 class 其实就是设计一个新的类型，想设计一个好的类型一定要去思考以下问题：
+   * 新 type 的对象应该如何被创建和销毁（构造函数、析构函数、内存分配函数、释放函数（new delete new[] delete[]）)
+   * 对象的初始化和对象的赋值该有什么样的差别（构造函数 和 赋值操作运算符）
+   * 新 type 的对象如果被 passed by value ，意味着什么。（拷贝构造函数用来定义一个 type 的pass by value 该如何实现）
+   * 什么是新 type 的合法值。
+   * 你的新 type 需要配合某个继承图系吗
+   * 你的新 type 需要什么样的转换
+   * 什么样的操作符和函数对此新 type 而言是合理的
+   * 什么样的标准函数应该驳回（声明为private）
+   * 谁该取用新 type 的成员
+   * 什么是新 type 的 ”未声明接口“
+   * 你的新 type 有多么的一般化
+   * 你真的需要一个新 type 吗
+
+## 20. Prefer pass-by-reference-to-const to pass-by-value
+
+1. 缺省情况下C++以by value方式（一个继承自C的方式）传递对象至（或来自）函数。除非你另外指定，否则函数参数都是以实际实参的复件（副本）为初值，而调用端所获得的亦是函数返回值的一个复件。这些复件（副本）系由对象的copy构造函数产出，这可能使得pass-by-value成为昂贵的（费时的）操作。
+2. 以引用方式传递参数有以下好处：
+   * 减少构造函数和析构函数的调用，提高效率
+   * 避免对象切割问题，当一个派生类对象以 by value 方式传递并被视为一个基类对象时，基类的拷贝构造函数会被调用，所以派生类对象所有的那些特质就会完全消失，造成对象切割问题。
+3. 以上规则并不适用于内置类型，以及 STL 的迭代器和函数对象。对它们而言，pass-by-value往往比较适当。
+
+## 21. Don't try to return a reference when you must return an object
+
+1. 所谓引用只是一个名称，任何时候看到一个引用的声明式，都要问自己，该引用代表的对象是哪一个。
+
+2. 如果函数要返回一个引用，那么这个引用一定指向了某一个对象，而要求这个对象在函数调用之前存在并不合理，往往是在函数内部再构造对象，所以有以下几种情况：
+
+   * 在 stack 空间上分配对象：此时函数调用结束以后，空间被释放，返回的引用将指向一段垃圾内容，出错。
+
+   * 在 heap 空间上分配对象：此时为了避免造成内存泄漏问题，那么就必须要有人去负责调用 delete 操作去回收内存，但是比如是重载了乘法运算符：
+     ```cpp
+     d = a * b * c;
+     d = operator*(operator*(a, b), c);
+     ```
+
+     此时括号内部的返回的指针我们并无法合理拿到，更不用谈删除。
+
+   * 声明为一个 static 对象，考虑以下代码：
+     ```cpp
+     if((a * b) == (c * d)){
+     
+     }
+     ```
+
+     此时 if 的条件永远为 true， 因为此时会调用两次乘法运算符，修改完 static 对象，所以两者的结果最终都是最后调用的那一次乘法运算得到的结果。
+
+## 22. Declare data members private
+
+1. 将成员变量声明为private。这可赋予客户访问数据的一致性、可细微划分访问控制、允诺约束条件获得保证，并提供class作者以充分的实现弹性。
+2. 封装性可以通过取消一个变量以后有多少代码需要进行改变来进行衡量，对于一个 public 成员变量如果取消，那么所有使用到该成员变量的代码都要进行改变；而对于 protected 成员变量，所有的派生类中也要进行改变，所以 protected 并不比 public 更具有封装性。
+
+## 23. Prefer non-member non-friend functions to member functions
+
+1. 如果某些东西被封装，它就不再可见。愈多东西被封装，愈少人可以看到它。而愈少人看到它，我们就有愈大的弹性去变化它，因为我们的改变仅仅直接影响看到改变的那些人事物。因此，愈多东西被封装，我们改变那些东西的能力也就愈大。这就是我们首先推崇封装的原因：它使我们能够改变事物而只影响有限客户。
+2. 如果要你在一个member函数（它不只可以访问class内的private数据，也可以取用private函数、enums、typedefs等等）和一个non-member，non-friend函数（它无法访问上述任何东西）之间做抉择，而且两者提供相同机能，那么，导致较大封装性的是non-member non-friend函数，因为它并不增加“能够访问class内之private成分”的函数数量。
+3. namespace 和 classes 不同，前者可跨越多个源码文件而后者不能。这很重要，因为像clearBrowser这样的函数是个“提供便利的函数”，如果它既不是 members 也不是 friends，就没有对 WebBrowser的特殊访问权力，也就不能提供“WebBrowser客户无法以其他方式取得”的机能。
+
+## 24.Declare non-member functions when type conversions should apply to all parameters
+
+1. 假设我们定义了一个有理数类，其中有一个非 explicit 的构造函数，参数是 int，所以就允许编译器隐式类型转换将一个 int 转化为该类类型，然后我们重载了 * 运算符：
+   ```cpp
+   result = r * 2; //正确，可以将 2 隐式类型转为有理数类
+   result = 2 * r; //错误，相当于 2.operator*(r)，而 2 的这个 int 类里面并没有重载这个函数，然后编译器
+   //去寻找类似于 operator*(2, r); 这样的函数，但是也没法找到一个参数为int 和 有理数类的 函数
+   ```
+
+2. 如果你需要为某个函数的所有参数（包括被 this指针所指的那个隐喻参数）进行类型转换，那么这个函数必须是个non-member。
+
+## 25. Consider support for a non-throwing swap
+
+1. 看的不是很懂！！！
+
