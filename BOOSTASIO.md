@@ -328,3 +328,50 @@
    ```
 
    `listen` 的时候是将服务器切换到监听模式，只有在此模式下，操作系统才会将客户端发送的连接请求放置一个队列中处理，否则直接拒绝，但是 `listen` 操作不会阻塞，阻塞的是 `accept` 操作，它回去检查待处理请求队列，如果有请求，那么就会使用新创建的 socket 来与客户端进行通信；如果队列为空，则阻塞等待。
+
+## Chapter 2. I / O Operations
+
+### 1. Using fixed length I/O buffers
+
+1. In Boost.Asio, a fixed length buffer is represented by one of the two classes:`asio::mutable_buffer` or `asio::const_buffer`.However, neither the `asio::mutable_buffer` nor `asio::const_buffer` classes are used in Boost.Asio I/O functions and methods directly. Instead, the `MutableBufferSequence` and `ConstBufferSequence` concepts are introduced.
+
+2. The `MutableBufferSequence` concept specifies an object that represents a collection of the `asio::mutable_buffer` objects. Correspondingly, the `ConstBufferSequence` concept specifies an object that represents a collection of the `asio::const_buffer` objects.
+
+3. The `asio::buffer()` free function has 28 overloads that accept a variety of representations of a buffer and return an object of either the `asio::mutable_buffers_1` or `asio::const_buffers_1` classes. If the buffer argument passed to the `asio::buffer()` function is a read-only type, the function returns an object of the `asio::const_buffers_1` class; otherwise, an object of the `asio::mutable_buffers_1` class is returned.
+
+4. example code:
+   ```cpp
+   #include <boost/asio.hpp>
+   #include <iostream>
+   
+   using namespace boost;
+   
+   int main()
+   {
+     std::string buf; // 'buf' is the raw buffer. 
+     buf = "Hello";   // Step 1 and 2 in single line.
+   
+     // Step 3. Creating buffer representation that satisfies 
+     // ConstBufferSequence concept requirements.
+     asio::const_buffers_1 output_buf = asio::buffer(buf);
+   
+     // Step 4. 'output_buf' is the representation of the
+     // buffer 'buf' that can be used in Boost.Asio output
+     // operations.
+   
+     return 0;
+   }
+   ```
+
+5. `asio::buffer()` 只是一个适配器，提供一个接口来使得满足 `asio` 对于缓冲区的要求，而 `raw buf` 本身并不从属于 `asio::buffer`，即 `raw buf` 本身的生命周期需要自己管理。
+
+### 2. Using extensible stream-oriented I/O buffers
+
+1. ```cpp
+   typedef basic_streambuf<> streambuf;
+   ```
+
+   此处是 `basic_streambuf` 有默认类型参数，所以是将该类模板的默认类型实例化后的类类型定义为别名 `streambuf`。
+
+### 3. Writing to a TCP socket synchronously
+
