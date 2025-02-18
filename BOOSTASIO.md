@@ -375,3 +375,122 @@
 
 ### 3. Writing to a TCP socket synchronously
 
+1. ```cpp
+   template<typename ConstBufferSequence>
+   std::size_t write_some(const ConstBufferSequence & buffers);
+   ```
+
+   该函数并不保证将 `buffers` 中的所有内容进行发送，仅仅保证如果没有错误的情况下至少发送一个字节，而返回成功发送的字节数，所以如果想要将所有内容发送到 `socket` ，我们可能需要多次调用这个函数。
+
+2. 库中还有 `send` 函数也可以用来同步阻塞的将数据写入到 `sokcet` 中。
+
+3. In contrast to the socket object's `write_some() `method, which writes someamount of data from the buffer to the socket, the `asio::write()` function writes all the data available in the buffer.
+
+### 4. Reading from a TCP socket synchronously
+
+1. ```cpp
+   template<typename MutableBufferSequence>
+   std::size_t read_some(const MutableBufferSequence & buffers);
+   ```
+
+   该函数不保证将 `socket` 中的所有内容都读取到 `buffer` 中，唯一保证的是在不出错的情况下返回的话至少读取了一个字节。所以如果想要读取多个字节，我们也要使用循环。
+   ```cpp
+   #include <boost/asio.hpp>
+   #include <iostream>
+   
+   using namespace boost;
+   
+   std::string readFromSocket(asio::ip::tcp::socket& sock) {
+     const unsigned char MESSAGE_SIZE = 7;
+     char buf[MESSAGE_SIZE];
+     std::size_t total_bytes_read = 0;
+   
+     while (total_bytes_read != MESSAGE_SIZE) {
+       total_bytes_read += sock.read_some(
+         asio::buffer(buf + total_bytes_read,
+         MESSAGE_SIZE - total_bytes_read));
+     }
+   
+     return std::string(buf, total_bytes_read);
+   }
+   
+   int main()
+   {
+     std::string raw_ip_address = "127.0.0.1";
+     unsigned short port_num = 3333;
+   
+     try {
+       asio::ip::tcp::endpoint
+         ep(asio::ip::address::from_string(raw_ip_address),
+         port_num);
+   
+       asio::io_service ios;
+   
+       asio::ip::tcp::socket sock(ios, ep.protocol());
+   
+       sock.connect(ep);
+   
+       readFromSocket(sock);
+     }
+     catch (system::system_error &e) {
+       std::cout << "Error occured! Error code = " << e.code()
+         << ". Message: " << e.what();
+   
+       return e.code().value();
+     }
+   
+     return 0;
+   }
+   ```
+
+   
+
+2. 库中还有 `receive` 函数也可以用来同步阻塞的将数据从 `sokcet` 中读出。
+
+3. In contrast to the socket's `read_some()` method, which reads some amount of data from the socket to the buffer, the `asio::read()` function, during a single call,reads data from the socket until the buffer passed to it as an argument is filled or an error occurs. 
+
+4. ```cpp
+   template<
+       typename SyncReadStream,
+       typename Allocator>
+   std::size_t read_until(
+       SyncReadStream & s,
+       boost::asio::basic_streambuf< Allocator > & b,
+       char delim);
+   ```
+
+   The `asio::read_until()` function provides a way to read data from a socket until a specified pattern is encountered in the data.The second argument named b represents a stream-oriented extensible buffer in which the data will be read. The last argument named delim specifies a delimiter(定界符) character.
+
+5. In other words, when the `asio::read_until()`function returns successfully, it is guaranteed that the buffer `b` contains at least one delimiter symbol but may contain more. It is the developer's responsibility to parse the data in the buffer and handle the situation when it contains data after the delimiter symbol.
+
+6. The `asio::read_at()`  function provides a way to read data from a socket, starting at a particular offset.
+
+### 5. Writing to a TCP socket asynchronously
+
+1. ```cpp
+   template<
+       typename ConstBufferSequence,
+       typename WriteHandler>
+   void async_write_some(
+       const ConstBufferSequence & buffers,
+       WriteHandler handler);
+   ```
+
+   This method initiates the write operation and returns immediately. It accepts an object that represents a buffer that contains the data to be written to the socket as its first argument. The second argument is a callback, which will be called by Boost.Asio when an initiated operation is completed.
+
+2. 异步操作通过 `io_context.run()` 来进行，该方法保证如果异步队列中还有异步操作没有完成，那么该方法就会阻塞住，而不会返回，直到异步操作中的队列为空。
+
+3. ```cpp
+   template<
+       typename AsyncWriteStream,
+       typename ConstBufferSequence,
+       typename WriteHandler>
+   void async_write(
+       AsyncWriteStream & s,
+       const ConstBufferSequence & buffers,
+       WriteHandler handler);
+   ```
+
+   the `asio::async_write()` function initiates the operation, which writes all the data available in the buffer. In this case, the callback is called only when all the data available in the buffer is written to the socket or when an error occurs. 
+
+### 6. Reading from a TCP socket asynchronously
