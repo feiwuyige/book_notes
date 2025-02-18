@@ -494,3 +494,44 @@
    the `asio::async_write()` function initiates the operation, which writes all the data available in the buffer. In this case, the callback is called only when all the data available in the buffer is written to the socket or when an error occurs. 
 
 ### 6. Reading from a TCP socket asynchronously
+
+1. ```cpp
+   template<
+       typename MutableBufferSequence,
+       typename ReadHandler>
+   void async_read_some(
+       const MutableBufferSequence & buffers,
+       ReadHandler handler);
+   ```
+
+   As the `async_read_some()` method's name suggests, it initiates an operation that is intended to read some amount of data from the socket to the buffer.This method guarantees that at least one byte will be read during the corresponding asynchronous operation if an error does not occur. This means that, in a general case, in order to read all the data from the socket, we may need to perform this asynchronous operation several times.
+
+2. The `asio::io_service::run()` method blocks as long as there is at least one pending asynchronous operation. When the last callback of the last pending operation is completed, this method returns.
+
+3. ```cpp
+   template<
+       typename AsyncReadStream,
+       typename MutableBufferSequence,
+       typename ReadHandler>
+   void async_read(
+       AsyncReadStream & s,
+       const MutableBufferSequence & buffers,
+       ReadHandler handler);
+   ```
+
+   the `asio::async_read()` function initiates the operation that reads the data from the socket until the buffer passed to it as an argument is full. 
+
+### 7. Canceling asynchronous operations
+
+1. When an asynchronous operation is canceled, the callback is invoked and its argument that specifies the error code contains an OS dependent error code defined in `Boost.Asio as asio::error::operation_aborted`.
+2. All asynchronous operations initiated by the corresponding free functions provided by Boost.Asio can be canceled as well by calling the `cancel()` method on an object that was passed to the free function as the first argument. This object can represent either a socket (active or passive) or a resolver.
+
+### 8. Shutting down and closing a socket
+
+1. 有的时候发送的消息长度不是固定的，这就是说接受方无法根据消息内容来判断是否发送完成，一般有两种解决办法：
+   * 对于每一个消息，有消息头和消息体，消息头中存放消息的相关信息。One approach to solve this problem is to structure each message in such a way that it consists of a logical header section and a logical body section. The header section has a fixed size and structure and specifies the size of the body section.
+   * 还有一种方式，当我们每次给对方发送消息的时候都是重新生成一个 `socket` 来进行消息发送（一般都是这样，一个 `socket` 用来接受连接，当有新连接的时候就分配新的 `socket` 用来通信），那么发送完消息以后就可以关闭 `socket` 来表示消息已经发送完毕。Another approach can be applied when an application uses a separate socket for each message sent to its peer, which is a quite popular practice. The idea of this approach is to shut down the send part of the socket by the message sender after the message is written to the socket. This results in a special service message being sent to the receiver, informing the receiver that the message is over and the sender will not send anything else using the current connection.
+2. The main difference between `shutting down` and `closing` a TCP socket is that closing interrupts the connection if one is established and, eventually,deallocates the socket and returns it back to the operating system, while shutting down only disables writing, reading, or both the operations on the socket and sends a service message to the peer application notifying about this fact. 关闭 `socket` 会将其返还给操作系统， `shutdown` 只是两者之间不再读写，即不再传输数据。
+3.  `socket` 的读写是独立的，我们可以只关闭它读或写的部分，所以当我们把要发送的信息全部写到 `socket` 以后，我们就可以 `shutdown` 它的 `write` ，这就说明我们已经发送了所有信息， 对端会读到对应的信息，从而知道已经发送完成，即 `read` 函数会返回一个错误码 `asio::error::eof`，就说明数据接受完毕，要注意的是一旦关闭 `socket` 的某个部分，就没有办法再进行恢复了。At this point, writing to the socket is disabled, and there is no way to restore the socket state to make it writable again.
+
+## Chapter 3. Implementing Client Applications

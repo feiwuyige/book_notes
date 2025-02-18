@@ -39,16 +39,21 @@
    * `const` ：承诺不修改这个值（只读）。const 声明的值 **可以** 在运行期间计算。
    * `constexpr`：在编译期间计算出的值。所以可以将这些数据存放在只读内存区域以提高性能。 constexpr 的值必须由编译器计算出。为了使得一个函数可以在 **常量表达式** 中使用，这个函数必须被定义为 `constexpr` 或 `consteval` 。
 
-   一个 `constexpr` 可以输入非常量参数调用，但是此时返回值不是常量表达式，如果要求某个函数仅在编译时计算，可以声明为 `consteval` 而不是 `constexpr` ：
+   但是一个声明为 `constexpr` 的函数也可以输入非常量参数进行调用，此时返回值不再是常量表达式，这样就不需要为了仅仅区分常量表达式与变量输入来定义同样的函数两次。如果要求某个函数仅在编译时计算，则可以声明为 `consteval` 而不是 `constexpr` ：
    ```cpp
    constexpr double square(double x ) {return x * x;}
    constexpr double max1 = 1.4 * square(17); //正确， 17 是常量，返回常量
    constexpr double max2 = 1.4 * square(var); //错误， var 不是常量，所以 square(var) 不是常量
    const double max3 = 1.4 * square(var); //正确， const 允许在运行时计算
    
-   consteval double square(double x ) {return x * x;}
-   constexpr double max1 = 1.4 * square(17); //正确，是常量表达式
-   const double max2 = 1.4 * square(var); //错误， var 不是常量
+   consteval double square1(double x ) {return x * x;}
+   constexpr double max1 = 1.4 * square1(17); //正确，是常量表达式
+   const double max2 = 1.4 * square1(var); //错误，var 不是常量，无法在编译期间运算
    ```
 
    被声明为 `consteval` 和 `constexpr` 的函数是 C++ 版本的 **纯函数**（不能有任何副作用，只能使用输入参数作为信息，尤其不能修改非局部变量，数学上的函数）。
+
+   总结一下：`const` 关键字修饰的变量可以在运行期间进行赋值，但是 `constexpr` 关键字修饰的变量必须在编译期间求值，修饰的函数依据传入的参数类型来决定返回值是否是常量表达式。`consteval` 关键字只能用来修饰函数，它保证这个函数在编译时计算。
+
+   **常量必须进行初始化！！！**
+
