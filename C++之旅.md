@@ -163,3 +163,125 @@
 
 ## 第六章 基本操作
 
+1. 对象被移动或者拷贝的情况：
+
+   * 赋值给其他对象
+   * 作为对象初始值
+   * 作为函数的实参
+   * 作为函数的返回值
+   * 作为异常
+
+   赋值语句使用拷贝或者移动赋值操作符，其他情况下将使用移动构造函数或拷贝构造函数。而且拷贝与移动构造函数常常被优化为在目标对象的位置直接初始化。
+
+2. 接受单个参数的构造函数同时也定义了从参数类型到类类型的转换。`explicit` 关键字。
+
+3. 当一个类被作为**资源句柄**时，也就是这个类负责通过指针访问一个对象时，采用默认的逐成员复制方式通常是错误的。这是因为类的对象将指向同一个资源，一个修改也会影响到另一个，但是用户往往不是为了这个目的，正确做法应该是复制一份资源，让新的对象指向这个新复制得到的资源。
+
+4. 右值引用：可理解为引用了一个别人无法为其赋值的内容，所以可以安全的“窃取”它的值，也就是可以进行移动。
+
+5. 使用移动构造函数或者智能指针把资源从一个作用域移动到另一个作用域，使用共享指针分享资源的所有权。
+
+6. `<=>` ：该操作符与 C 语言中的 `strcmp()` 一样，返回负数表示小于，返回零表示等于，返回正数表示大于。在定义了默认的 `<=>` 操作符，其他关系操作符会被隐式定义。当 `<=>` 没被声明为 default 时，不会隐式定义 `==` 操作符，但是 `<` 符号以及其他操作符会被定义。
+
+7. 可以通过给字面量加后缀生成用户定义字面量， `"hello,world"s` 是 `std::string` 类型的。
+
+
+
+## 第七章 模板
+
+1. 受限模板参数：
+   ```cpp
+   template <Element T>
+   class Vector{
+   private:
+       T* elem;
+       int size;
+   };
+   ```
+
+   `template<Element T> ` 前缀是 C++ 对数学中 “对所有 T 满足Elemment(T)” 的描述。即 `Element` 是一个谓词，用于检查 `T` 是否满足 `Vector` 需要的特性，这种谓词叫做 **概念**，在模板参数中指定一个概念，这叫做 **受限模板参数**，拥有这种参数的模板叫做**受限模板**。
+
+2. 由于隐晦的技术原因，字符串字面量不可以作为**模板值参数**。
+
+3. C 风格的字符串字面量类型是 `const char*`。
+
+4. 如果初始化列表中的元素有不同的类型，编译器就无法推导出唯一的元素类型。
+
+5. 推导指引：
+   ```cpp
+   template <tyname Iter>
+   	Vector(Iter, Iter) -> Vector<typename Iter::value_type>;
+   ```
+
+6. 要想表达将操作用类型或者值来参数化，有三种方法：
+
+   * 模板函数
+   * 函数对象：对象可以携带数据，并且以函数的形式调用(重载调用运算符)
+   * 匿名函数表达式：函数对象的简略记法
+
+7. 模板函数不能是虚函数，因为编译器无法知道模板的所有实例，不可能为模板函数生成 `vtbl` 。
+
+8. 谓词：可以调用并返回 `true` 或 `false` 的对象。
+
+9. [[ nodiscard]] 属性表示函数的返回值不应该被忽略，如果忽略编译器就会发生警告。
+
+10. 作用域终结函数：
+    ```cpp
+    void old_style(int n){
+    	void *p = malloc(n * sizeof(int));
+        //必须手动free，为了实现RAII思想，我们可以如下做
+        auto act = finally([&]{free p;});
+        //act 是一个对象，他会在函数执行完毕以后执行析构函数
+    }
+    //finally()实现，即返回一个具体的对象
+    template <class F>
+        [[nodiscard]] auto finally(F f){
+    	return Final_action{f};
+    }
+    //Final_action类
+    template <class F>
+        struct Final_action{
+    		explicit Final_action(F f) : act(f) {}
+            ~Final_action() {act();}
+            F act;
+        };
+    ```
+
+11. 模板机制：
+
+    * 依赖类型的值：参数模板
+      ```cpp
+      //定义一个模板类的时候往往需要定义对应类型的常量和值
+      template <class T>
+      	constexpr T viscosity = 0.4;
+      template <typename T, typename T2>
+      constexpr bool Assignable = is_assignable<T&, T2>::value;
+      ```
+
+    * 类型与模板的别名：别名模板
+      ```cpp
+      template <typename C>
+      	using Value_type = C::value_type; //C的元素类型
+      template <typename Container>
+      void algo(Container& c){
+      	Vector<Value_type<Container> > vec; //根据 Value_type这个别名模板读出对应类型
+      }
+      ```
+
+    * 编译时选择机制： if constexpr(c++ 17)
+      ```CPP
+      //if constexpr 允许在编译时对类型、常量值等进行判断，并根据条件决定是否编译某一部分代码。
+      if constexpr (条件) {
+          // 条件为真时编译此部分代码
+      } else {
+          // 条件为假时编译此部分代码
+      }
+      ```
+
+    * 编译时查询值与表达式属性的机制：requires 表达式(见第八章)
+
+## 第八章 概念和泛型编程
+
+1. 概念：比如在一个函数模板中，我们对于实例化的参数有一定的要求，这种要求叫做 **概念（concept）**。
+2. 
+
