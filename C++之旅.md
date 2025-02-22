@@ -283,5 +283,107 @@
 ## 第八章 概念和泛型编程
 
 1. 概念：比如在一个函数模板中，我们对于实例化的参数有一定的要求，这种要求叫做 **概念（concept）**。
-2. 
+2. 在使用模板的时候，`typename` 可以理解为最低的类型要求，只需要是一个类型即可，我们可以定义相关的概念，然后用这个关键字来替代 `typename`，比如一个求和函数，我们要求第一个参数是一个序列，第二个参数是一个数字，同时要满足序列中的元素可以与第二个参数进行运算，即可定义如下：
+   ```cpp
+   template <Sequence Seq, Number Num>
+   	requires Arithmetic<range_value_t<Seq>, Num>
+   Num Sum(Seq s, Num n);
+   //也可以如下定义
+   template <typename Seq, typename Num>
+   	requires Sequence<Seq> && Number<Num> && Arithmetic<range_value_t<Seq>, Num>
+   Num Sum(Seq s, Num n);
+   ```
+
+3. 可以基于概念对函数进行重载，即函数名称相同，但是概念不同，则编译器在调用的时候会选择符合概念的函数。
+
+4. 定义概念：
+   ```cpp
+   template <forward_iterator Iter>
+   	requires requires (Iter p, int i){p[i]; p+i;}
+   void advance(Iter p, int n){
+       p += n;
+   }
+   ```
+
+   第一个 `requires` 表示开始一个 `requiresment` 字句；第二个 `requires` 表示开始一个 `requires` 表达式，这是一个谓词，代码有效则返回 `true`，否则返回 `false` 。个人理解是在语句中直接定义概念
+
+   ```cpp
+   template <typename T>
+   concept Equality_comparable = 
+   	requires (T a, T b){
+       {a == b} -> Boolean; //Boolean也是一个概念
+       {a != b} -> Boolean;
+   }
+   ```
+
+   概念是一个编译时谓词，指示了一个或多个类型如何被使用。`concept` 的值一定是 `bool` 类型的，此处 `{...}` 的返回值在 `->` 指定，他必须是一个概念。**模板中的概念是用来检查模板实例化时的参数的，并不用于在定义模板时进行检查。**
+
+5. `auto` 关键字表示一个对象与其初始化描述符的类型相同。所以在一个函数中将参数声明为 `auto` 类型，则表示了值得最小约束概念，也就是说他需要的仅仅是某个类型的值，这会将一个函数变成模板函数，我们可以使用概念替换 `auto` ，增强类似初始化需求约束：
+
+   ```cpp
+   //仅用于算数类型
+   auto twice(Arithmetic auto x){
+       return x + x;
+   }
+   ```
+
+6. **可变参数模板**：定义模板时令其接受任意数量、任意类型的实参，这样的模板称为*可变参数模板*（Variadic template）。我们可以定义模板形参包和函数形参包：
+
+   * 模板形参包：接受零个或更多个模板实参（非类型、类型或模板）的模板形参。
+   * 函数形参包：接受零个或更多个函数实参的函数形参。
+
+   ```cpp
+   //Args 是模板形参包
+   //args 是函数形参包
+   template <typename... Args>
+   void sum(Args... args){
+       
+   }
+   ```
+
+   形参包的使用：
+   后随省略号且其中至少有一个形参包的名字的模式会被*展开* ﻿成零个或更多个逗号分隔的模式实例，其中形参包的名字按顺序被替换成包中的各个元素。
+
+   ```cpp
+   template<class... Us>
+   void f(Us... pargs) {}
+    
+   template<class... Ts>
+   void g(Ts... args)
+   {
+       f(&args...); // “&args...” 是包展开
+                    // “&args” 是它的模式
+   }
+    
+   g(1, 0.2, "a"); // Ts... args 会展开成 int E1, double E2, const char* E3
+                   // &args... 会展开成 &E1, &E2, &E3
+                   // Us... 会展开成 int* E1, double* E2, const char** E3
+   ```
+
+7. 折叠表达式：使用 `...` ，***折叠表达式是左折叠还是右折叠，取决于 `...` 是在“形参包”的左边还是右边。***
+   ```cpp
+   template <Number... T>
+   int sum(T... v){
+   	return (v + ... + 0); //将v中所有元素与0累加，右折叠
+       return (0 + ... + v); //左折叠
+   }
+   ```
+
+   右折叠：最右边的参数先计算，相当于 (v[0] + (v[1] + (v[2] + (v[3] + (v[4] + 0)))));
+
+   左折叠：最左边的参数先计算，相当于(((((0 + v[0]) + v[1]) + v[2]) + v[3]) + v[4]);
+
+   ```cpp
+   template <Printable ...T>
+   void print(T&&... args){
+   	(std::cout << ... << args) << '\n';
+   }
+   print("Hello"s, ' ', "World ", 2017);
+   //左折叠
+   //相当于：(((((std::cout << "Hello"s) << ' ') <<"World") << 2017) << '\n');
+   ```
+
+## 第九章 标准库
+
+
 
