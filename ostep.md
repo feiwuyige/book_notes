@@ -230,11 +230,43 @@
 
 
 ### 第20章 分页：较小的表
-2. 假设32位地址空间，每个页大小为 4 KB，那么一共有 $2^{32} / 2^{12} = 2^{20} $ 个页表项，每一个页表项为 4 个字节，那么页表就要占 $2 ^ {20} \times 4 = 2 ^ {22} = 4 MB$，这对于内存空间负担太大，所以我们需要一些方法来使得页表的空间变小。一种方法就是缩小页表项的大小，一种方法就是减少页表项的数量，这是两种基本思路。
+1. 假设32位地址空间，每个页大小为 4 KB，那么一共有 $2^{32} / 2^{12} = 2^{20} $ 个页表项，每一个页表项为 4 个字节，那么页表就要占 $2 ^ {20} \times 4 = 2 ^ {22} = 4 MB$，这对于内存空间负担太大，所以我们需要一些方法来使得页表的空间变小。一种方法就是缩小页表项的大小，一种方法就是减少页表项的数量，这是两种基本思路。
    * 更大的页：通过增加每个页的大小，在地址空间保持不变的情况下，就可以减少页表项的数量。但是这种方法会造成页内的浪费，因为将某个页加载到内存的时候，可能只使用一小部分。（内存页太大）
    * 分页和分段：我们将内存分为代码、堆、栈，然后在每个段中再进行分页，使用基址寄存器指向保存该段的页表的物理地址，界限寄存器用于指示页表的结尾。这种方法的主要思路在于减少内存中无效的页表，**我们不是为进程的整个地址空间提供单个页表，而是为每个逻辑分段提供一个。**
-   * 多级页表：与分页和分段方法思路一样，即**去掉页表中的所有无效区域，而不是将他们都全部保留在内存中**。
-
+   * 多级页表：与分页和分段方法思路一样，即**去掉页表中的所有无效区域，而不是将他们都全部保留在内存中**。将页表分成页大小的单元，如果整页的页表项（PTE）无效，就不分配该页的页表。使用页目录来记录。
+2. 超越二级页表：
+假设地址空间30位，每一页大小是512个字节，也就是说页内偏移需要9位，页号一共则有21位，**构建多级页表的目标是为了让页表的每一部分都放入一个页，这样子就可以通过页目录项来进行索引。**我们假设每个页表项位4个字节，也就是说一页中可以放入128个页表项，那么我们索引页表的时候就需要 7 位（页表的页内偏移），此时还有14（30 - 9 - 7 = 14）位可以用来索引页表，也就是存放页目录项的表，我们的页目录项就一共有 2 ^ 14 个，也就是页目录项要占用 2 ^ 14 * 4 / 512 = 2 ^ 7 = 128 个页，还是很占用内存空间，所以可以再建立一级页表。
+```
+cpp
+1    VPN = (VirtualAddress & VPN_MASK) >> SHIFT
+2    (Success, TlbEntry) = TLB_Lookup(VPN)
+3    if (Success == True)    // TLB Hit
+4        if (CanAccess(TlbEntry.ProtectBits) == True)
+5            Offset   = VirtualAddress & OFFSET_MASK
+6            PhysAddr = (TlbEntry.PFN << SHIFT) | Offset
+7            Register = AccessMemory(PhysAddr)
+8        else
+9            RaiseException(PROTECTION_FAULT)
+10   else                  // TLB Miss
+11       // first, get page directory entry
+12       PDIndex = (VPN & PD_MASK) >> PD_SHIFT
+13       PDEAddr = PDBR + (PDIndex * sizeof(PDE))
+14       PDE     = AccessMemory(PDEAddr)
+15       if (PDE.Valid == False)
+16           RaiseException(SEGMENTATION_FAULT)
+17       else
+18           // PDE is valid: now fetch PTE from page table
+19           PTIndex = (VPN & PT_MASK) >> PT_SHIFT
+20           PTEAddr = (PDE.PFN << SHIFT) + (PTIndex * sizeof(PTE))
+21           PTE     = AccessMemory(PTEAddr)
+22           if (PTE.Valid == False)
+23               RaiseException(SEGMENTATION_FAULT)
+24           else if (CanAccess(PTE.ProtectBits) == False)
+25               RaiseException(PROTECTION_FAULT)
+26           else
+27               TLB_Insert(VPN, PTE.PFN, PTE.ProtectBits)
+28               RetryInstruction()
+```
 
 ### 第 26 章 并发：介绍
 
