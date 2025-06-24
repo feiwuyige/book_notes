@@ -316,3 +316,48 @@ int pthread_cond_signal(pthread_cond_t *cond);
 ```
 
 ### 第 28 章 锁
+1. 并发编程的基本问题：**原子式的执行一系列指令，但是由于单处理器的中断或者多个线程在多个处理器上并发执行，很难做到。**
+
+2. 评价锁的指标：
+* 互斥：能否实现互斥，即阻止多个线程进入临界区。
+* 公平性：当锁可用的时候，是否每一个竞争线程有公平的机会抢到锁。
+* 性能：使用锁以后增加的时间开销，需要考虑多种场景，如只有一个线程获取释放锁，一个cpu上多个线程竞争锁，多个cpu上多个线程竞争锁。
+
+3. 锁的实现：
+* **关闭中断**：为单处理器系统开发，在临界区关闭中断，这样就不会被其他线程进行抢占，从而实现原子操作。这种方法的弊端：
+   * 对于开关中断这样的指令，应该是特权级的指令，一般的进程不应该有这个权限，否则很容易出现安全问题，若进程出现死循环，也只能重启系统。
+   * 现在基本上都是多处理器，这种方式对多处理器不起作用，因为多处理器中关中断只能影响当前CPU核心，而其他核心仍然可以并行执行代码。多处理器上的并发问题不仅是中断导致的临界区操作不具有原子性，还包括多个线程可能在不同核心同时进入临界区，访问资源。
+   * 关闭中断可能导致中断丢失，比如在中断关闭的过程中，磁盘 io 结束，发起的中断将不会被 cpu 响应，所以可能需要一些更复杂的机制来对中断进行保存。
+   * 性能较差。
+* **原子交换指令**：测试并设置指令（test-and-set instruction），也叫做原子交换指令（atomic exchange），通过标志位来实现锁：
+   ```c
+   1    typedef struct  lock_t { int flag; } lock_t;
+   2
+   3    void init(lock_t *mutex) {
+   4        // 0 -> lock is available, 1 -> held
+   5        mutex->flag = 0;
+   6    }
+   7
+   8    void lock(lock_t *mutex) {
+   9        while (mutex->flag == 1) // TEST the flag
+   10           ; // spin-wait (do nothing)
+   11       mutex->flag = 1;         // now SET it!
+   12   }
+   13
+   14   void unlock(lock_t *mutex) {
+   15       mutex->flag = 0;
+   16   }
+   ```
+   但是需要硬件提供一定的支持，否则比如线程一调用 `lock` ，执行到 `while(mutex->flag == 1)` 以后，正准备执行 `mutex->flag = 1` 时，被切到线程二调用 `lock` ，然后再返回，这样就导致线程一二都可以进入临界区，所以硬件提供了一些指令，各个平台上有不同的指令(x86上为 xchg 指令)，这些指令干的事情可以概括如下：
+   ```c
+   1    int TestAndSet(int *old_ptr, int new) {
+   2        int old = *old_ptr; // fetch old value at old_ptr
+   3        *old_ptr = new;    // store 'new' into old_ptr
+   4        return old;        // return the old value
+   5    }
+   ```
+   测试并设置指令做了下述事情。它返回old_ptr指向的旧值，同时更新为new的新值。当然，关键是这些代码是原子地（atomically）执行。所以我们可以利用该指令来实现 **自旋锁**，仅仅需要将上面的代码修改为：
+   ```c
+      while(TestAndSet(&lock->flag, 1) == 1);
+   ```
+   **重点就是在于 `while` 判断的时候原子的进行了值的设置，而不会在对 `flag` 的值进行修改的时候被中断。**
