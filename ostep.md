@@ -361,3 +361,83 @@ int pthread_cond_signal(pthread_cond_t *cond);
       while(TestAndSet(&lock->flag, 1) == 1);
    ```
    **重点就是在于 `while` 判断的时候原子的进行了值的设置，而不会在对 `flag` 的值进行修改的时候被中断。**
+* **比较并交换**：某些系统提供了另一个硬件原语，即比较并交换指令（x86上为 compare-and-exchange），指令伪代码:
+   ```c
+   1    int CompareAndSwap(int *ptr, int expected, int new) {
+   2        int actual = *ptr;
+   3        if (actual == expected)
+   4            *ptr = new;
+   5        return actual;
+   6    }
+   ```
+   该指令会检测 `ptr` 指向的值与 `expected` 的值是否相等，如果相等，则更新 `ptr` 指向的值为新值，否则什么也不做，然后返回旧值。利用该指令，也可以实现一个锁：
+   ```c
+      while(CompareAndSwap(&lock->flag, 0, 1) == 1);
+   ```
+   如果 `lock->flag` 指向的值是0，则变为1，并返回0；否则，值是1，返回1。**重点就是在于 `while` 判断的时候原子的进行了值的设置，而不会在对 `flag` 的值进行修改的时候被中断。**
+* **链接的加载和条件式存储指令**：例如Mips架构提供了链接的加载(load-linked)和条件式存储(store-conditional)可以配合使用来实现临界区。
+   ```c
+   1    int LoadLinked(int *ptr) {
+   2        return *ptr;
+   3    }
+   4
+   5    int StoreConditional(int *ptr, int value) {
+   6        if (no one has updated *ptr since the LoadLinked to this address) {
+   7            *ptr = value;
+   8            return 1; // success!
+   9        } else {
+   10           return 0; // failed to update
+   11       }
+   12   }
+   ```
+   链接的加载指令从内存中取出一个值放入寄存器，条件式存储指令比较特殊，只有当上一次加载的地址没有被再调用过 `LoadLinked` 才会成功，将值进行修改，否则失败。依据这两条硬件指令，我们也可以实现一个锁：
+   ```c
+      void init(lock_t *mutex){
+         mutex->flag = 0;
+      }
+      void lock(lock_t *mutex){
+         while(1){
+            while(LoadLinked(&mutex->flag) == 1);
+            if(StoreConditional(&mutex->flag, 1) == 1)
+               return;
+         }
+      }
+      void unlock(lock_t *mutex){
+         mutex->flag = 0;
+      }
+   ```
+   **重点就是判断标志以后如何可以原子的进行修改**
+* **获取并增加**：获取并增加指令(fetch-and-add)，可以原子的返回特定地址的旧值，然后让该值自增一。
+   ```c
+   1    int FetchAndAdd(int *ptr) {
+   2        int old = *ptr;
+   3        *ptr = old + 1;
+   4        return old;
+   5    }
+   1    typedef struct  lock_t {
+   2        int ticket;
+   3        int turn;
+   4    } lock_t;
+   5
+   6    void lock_init(lock_t *lock) {
+   7        lock->ticket = 0;
+   8        lock->turn   = 0;
+   9    }
+   10
+   11   void lock(lock_t *lock) {
+   12       int myturn = FetchAndAdd(&lock->ticket);
+   13       while (lock->turn != myturn)
+   14           ; // spin
+   15   }
+   16
+   17   void unlock(lock_t *lock) {
+   18       FetchAndAdd(&lock->turn);
+   19   }
+   ```
+   相当于每一个线程有一个顺序，当你调用 `lock` 的时候，就会将当前的 `ticket` 赋值给你，然后每次解锁的时候就调用下一个，将 `turn + 1`，只有 `turn == ticket` 的时候，就轮到这个线程持有锁了。
+
+4. 当有 N 个线程在单处理上运行的时候，如果需要一把锁，那么只有一个线程可以持有，然后时间片到了以后，调用别的线程去运行，别的线程只会去尝试获取锁，造成 `cpu` 空转，如果这 `N` 个线程都被调用一次，那么就会浪费 `N - 1` 个时间片，极大的造成性能的浪费。
+
+5. 提高自选锁的性能的方法:
+* 主动让出CPU：操作系统提供一种原语，当线程发现自己要进行自旋的时候，主动调用该原语，os 就将该线程从运行态变为就绪态，从而允许其他线程进行运行。（但是上下文切换依然开销很大，而且有可能会有进程饿死，一直得不到调用）
+* 使用队列，用休眠替代自旋：
