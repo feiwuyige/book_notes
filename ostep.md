@@ -475,4 +475,63 @@ Linux 下提供了两个系统调用：
 
    可以使用**信号量**来实现锁和条件变量，换言之，信号量可以作为与同步有关所有工作的单一原语。
 
-2. 
+2. 信号量有两个关键操作:
+   * sem_wait()：信号量的值减少 1，如果信号量的值 < 0 则挂起调用线程。
+   * sem_post()：信号量的值增加 1，如果此时有线程等待，则唤醒一个线程。
+   **所以当信号量的值为负数的时候，这个值就是等待线程的个数。**
+
+3. 二值信号量（锁）：将信号量的值设置为 1，此时访问临界区的时候调用 `sem_wait()`，出临界区以后调用 `sem_post()` 就可以实现锁的效果。
+
+4. 使用信号量作为条件变量：将信号量的值设置为 0， A 等待 B 执行完成后再执行，那么就可以在 A 中调用 `sem_wait()`，然后在 `B` 中调用 `sem_post()` 。
+
+5. 使用信号量解决生产者/消费者问题：
+   * 缓冲区是共享资源，对于缓冲区的操作需要加锁保持原子性。
+   * 对于锁的获取，应该是先等待条件变量，条件满足以后再尝试获取锁，如果先获取锁则可能出现死锁。
+
+6. 读者-写者锁：不同的数据结构访问模式可能需要不同类型的锁，比如一个并发链表如果插入节点则需要加锁，但是如果只是读取节点的值，则没必要加锁。
+   ```c
+   typedef struct _rw_lock_t{
+      sem_t lock; //普通的锁，值为 1
+      sem_t writelock; // 用于允许一个人写或多个人读
+      int readers; //当前在临界区读的个数
+   } rwlock_t;
+   ```
+   写锁与普通的锁一致，但是对于获取读锁时，我们首先获取 lock，然后增加 readers 的数量，如果是第一位读者，同时获取 writelock，然后就可以释放 lock 了；释放读锁的时候，首先获取 lock，然后减少 readers 的数量，如果是最后一位读者，释放 writelock。**此处的 lock 相当于在控制对 readers 的读写，保证其更新是原子的。** 
+
+7. 哲学家就餐问题：打破依赖！！！如果每个人都优先拿左边的叉子，那么可能会出现死锁，我们可以让某个人优先拿自己右手的叉子。
+
+8. 实现信号量：初始化，wait，post
+   ```c
+   typedef struct _Zem_t{
+      int value;
+      pthread_cond_t cond;
+      pthread_mutex_t lock;
+   } Zem_t;
+
+   //init
+   void Zem_init(Zem_t *s, int value){
+      s->value = value;
+      Cond_init(&s->cond);
+      Mutex_init(&s->lock);
+   }
+
+   //wait
+   void Zem_wait(Zem_t *s){
+      Mutex_lock(&s->lock);
+      while(s->value <= 0)
+         Cond_wait(&s->cond, &s->lock);
+      s->value--;
+      Mutex_unlock(&s->lock);
+   }
+
+   //post
+   void Zem_post(Zem_t *s){
+      Mutex_lock(&s->lock);
+      s->value++;
+      Cond_signal(&s->cond);
+      Mutex_unlock(&s->lock);
+   }
+   ```
+   与上面描述的信号量有点差别，这里的信号量永远不会小于0。
+
+### 第 32 章 常见并发问题
