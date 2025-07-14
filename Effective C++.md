@@ -98,7 +98,7 @@
 
 3. C++的初始化次序：
 
-   * `base class` 更早于其 `derived class`  被初始化，而 `class` 成员变量总是以其声明次序（构造函数参数的顺序）被初始化。
+   * `base class` 更早于其 `derived class`  被初始化，而 `class` 成员变量总是以其声明次序（在类中的定义顺序）被初始化。
    * 定义于不同编译单元内的 `non-local static` 对象的初始化次序并无明确定义。
 
    ps. `static` 对象，其寿命从被构造出来直到程序结束为止，包括 `global` 对象，定义于 `namespace` 作用域内的对象，在 `class` 内、函数内以及在 `file` 作用域内被声明为`static` 的对象，函数内的 `static` 对象称为 `local static` 对象，其它为 `non local static` 对象。**程序结束时 `static` 对象会自动销毁，也就是它们的析构函数会在 main 函数结束时调用**。
