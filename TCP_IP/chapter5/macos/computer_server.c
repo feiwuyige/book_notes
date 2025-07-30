@@ -14,7 +14,7 @@ void error_handling(char *message){
     exit(1);
 }
 
-void splitString(const char *str, char delim, int *nums, int *count){
+void splitString(const char *str, int *nums, int *count){
     int i = 0;
     int index = 0;
     while(*(str + i) != '\0'){
@@ -47,17 +47,17 @@ int compute(char *begin, char *end){
     *end = '\0';
     int nums[100] = {0};
     int count = 0;
-    splitString(begin, operator, nums, &count);
-    int result;
+    splitString(begin, nums, &count);
+    int result = nums[0];
     switch(operator){
         case '+':
-            for(int i = 0;i < count; ++i) result += nums[i];
+            for(int i = 1;i < count; ++i) result += nums[i];
             break;
         case '-':
-            for(int i = 0;i < count; ++i) result -= nums[i];
+            for(int i = 1;i < count; ++i) result -= nums[i];
             break;
         case '*':
-            for(int i = 0;i < count; ++i) result *= nums[i];
+            for(int i = 1;i < count; ++i) result *= nums[i];
             break;
     }
     return result;
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]){
 
     clnt_addr_size = sizeof(clnt_addr);
     //accept
-    char message[BUFSIZE];
+    char message[BUFSIZE] = {0};
     for(int i = 0;i < 5;++i){
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
         if(clnt_sock == -1){
@@ -113,6 +113,7 @@ int main(int argc, char *argv[]){
         int read_bytes = 0;
         int recv_bytes = 0;
         while((recv_bytes = read(clnt_sock, message + used_bytes, BUFSIZE)) != 0){
+            fputs(message, stdout);
             used_bytes += recv_bytes;
             for(int j = read_bytes; j < used_bytes; ++j){
                 if(message[j] == '='){
@@ -121,9 +122,15 @@ int main(int argc, char *argv[]){
                     char *expression_end = message + j;
                     int answer = compute(expression_begin, expression_end);
                     read_bytes = j + 1;
+                    //write the answer to client
+                    char flag = '=';
+                    write(clnt_sock, (char*)&answer, sizeof(answer));
+                    write(clnt_sock, &flag, sizeof(flag));
+                    break;
                 }
             }
         }
+        close(clnt_sock);
     }
     close(serv_sock);
     return 0;
