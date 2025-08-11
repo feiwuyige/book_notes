@@ -5,8 +5,10 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #define BUFSIZE 1024
+#define OPSIZE 4
 
 void error_handling(char *message){
     fputs(message, stderr);
@@ -14,50 +16,26 @@ void error_handling(char *message){
     exit(1);
 }
 
-void splitString(const char *str, int *nums, int *count){
-    int i = 0;
-    int index = 0;
-    while(*(str + i) != '\0'){
-        if(isdigit(*(str + i))){
-            int num = 0;
-            while(isdigit(*(str + i))){
-                num = num * 10 + (*(str + i) - '0');
-                i++;
-            }
-            *(nums + index) = num;
-            index++;
-        }
-        i++;
-    }
-    *count = index;
-    return;
-}
 
-int compute(char *begin, char *end){
-    char operator;
-    char *p = begin;
-    while(p < end){
-        if(*p == '+' || *p == '-' || *p == '*'){
-            operator = *p;
-            break;
-        }
-        ++p;
-    }
-
-    *end = '\0';
-    int nums[100] = {0};
-    int count = 0;
-    splitString(begin, nums, &count);
-    int result = nums[0];
-    switch(operator){
+int32_t calculate(int8_t op_num, int32_t *operands, char op){
+    int32_t result = operands[0];
+    switch(op){
         case '+':
-            for(int i = 1;i < count; ++i) result += nums[i];
+            for(int8_t i = 1;i < op_num; ++i){
+                result += operands[i];
+            }
             break;
         case '-':
-            for(int i = 1;i < count; ++i) result -= nums[i];
+            for(int8_t i = 1;i < op_num; ++i){
+                result -= operands[i];
+            }
             break;
         case '*':
-            for(int i = 1;i < count; ++i) result *= nums[i];
+            for(int8_t i = 1;i < op_num; ++i){
+                result *= operands[i];
+            }
+            break;
+        default:
             break;
     }
     return result;
@@ -99,7 +77,6 @@ int main(int argc, char *argv[]){
 
     clnt_addr_size = sizeof(clnt_addr);
     //accept
-    char message[BUFSIZE] = {0};
     for(int i = 0;i < 5;++i){
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
         if(clnt_sock == -1){
@@ -108,28 +85,16 @@ int main(int argc, char *argv[]){
         else{
             printf("Connected client %d \n", i + 1);
         }
-        //use the "=" to divide the message
-        int used_bytes = 0;
-        int read_bytes = 0;
-        int recv_bytes = 0;
-        while((recv_bytes = read(clnt_sock, message + used_bytes, BUFSIZE)) != 0){
-            fputs(message, stdout);
-            used_bytes += recv_bytes;
-            for(int j = read_bytes; j < used_bytes; ++j){
-                if(message[j] == '='){
-                    //divide the message
-                    char *expression_begin = message + read_bytes;
-                    char *expression_end = message + j;
-                    int answer = compute(expression_begin, expression_end);
-                    read_bytes = j + 1;
-                    //write the answer to client
-                    char flag = '=';
-                    write(clnt_sock, (char*)&answer, sizeof(answer));
-                    write(clnt_sock, &flag, sizeof(flag));
-                    break;
-                }
-            }
+        int8_t opnt;
+        read(clnt_sock, &opnt, 1);
+        char opinfo[BUFSIZE];
+        int recv_len = 0, recv_cnt;
+        while((opnt * OPSIZE + 1) > recv_len){
+            recv_cnt = read(clnt_sock, &opinfo[recv_len], BUFSIZE - 1);
+            recv_len += recv_cnt;
         }
+        int8_t result = calculate(opnt, (int32_t*)opinfo, opinfo[recv_len - 1]);
+        write(clnt_sock, (char*)&result, sizeof(result));
         close(clnt_sock);
     }
     close(serv_sock);
