@@ -144,3 +144,29 @@
 5. 习题：
 
 ## chapter6 基于UDP的服务器端/客户端
+1. UDP 的服务器端和客户端不用像 TCP 那样在连接状态下交换数据，无需经过连接过程（listen accept ），只有创建套接字和数据交换过程。
+
+2. TCP 的时候，每有一个新的客户端建立连接，就需要给这个客户端在服务器中分配一个新的 socket，但是在 UDP 中，客户端和服务器都只需一个 socket 就可以了，所有的数据收发都通过这个sokcet 来进行。
+
+3. 因为 TCP socket 保持与对方 socket 的连接，所以在传输数据的时候不需要再添加地址信息，而 UDP socket 则需要添加地址信息。
+    ```c
+    ssize_t sendto(int sock, void *buff, size_t nbytes, int flags, struct sockaddr *to, socklen_t addrlen);
+    ```
+    * sock：用于传输数据的 UDP socket 文件描述符。
+    * buff：保存待发送数据的缓冲区的首地址。
+    * nbytes：待发送数据的长度，以字节为单位。
+    * flags：可选项参数，一般填 0。
+    * to：保存目标地址信息 sockaddr 的结构体变量的地址。
+    * addrlen：保存目标地址信息的变量长度。
+    ```c
+    ssize_t recvfrom(int sock, void *buff, size_t nbytes, int flags, struct sockaddr *from, socklen_t *addrlen);
+    ```
+
+4. UDP 程序中，调用 sendto 函数的时候自动分配 IP 和端口号。调用 sendto 函数大致有以下阶段：
+* 向 UDP 套接字注册目标IP和端口号。
+* 传输数据。
+* 删除 UDP 套接字中注册的目标地址信息。
+
+5. 当使用 UDP 套接字对同一个目标 IP 和 端口进行数据发送的时候，多次的注册和删除地址信息会导致性能下降，所以可以通过创建 connected UDP 套接字来避免这个问题，即对 UDP socket 调用 `connect` 函数。
+
+6. 习题：
