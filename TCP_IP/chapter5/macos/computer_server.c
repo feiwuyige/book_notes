@@ -93,7 +93,7 @@ int main(int argc, char *argv[]){
             recv_cnt = read(clnt_sock, &opinfo[recv_len], BUFSIZE - 1);
             recv_len += recv_cnt;
         }
-        int8_t result = calculate(opnt, (int32_t*)opinfo, opinfo[recv_len - 1]);
+        int32_t result = calculate(opnt, (int32_t*)opinfo, opinfo[recv_len - 1]);
         write(clnt_sock, (char*)&result, sizeof(result));
         close(clnt_sock);
     }
